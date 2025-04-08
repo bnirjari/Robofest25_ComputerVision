@@ -1,0 +1,57 @@
+import cv2
+import numpy as np
+
+# Load the image
+image = cv2.imread("stair1.jpg")
+gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+# Increase contrast and brightness
+alpha = 1.5  # Contrast control
+beta = 30    # Brightness control
+adjusted = cv2.convertScaleAbs(gray, alpha=alpha, beta=beta)
+
+# Apply Gaussian Blur to reduce noise
+blurred = cv2.GaussianBlur(adjusted, (5, 5), 0)
+
+# Apply Canny Edge Detection
+low_threshold = 50
+high_threshold = 150
+edges = cv2.Canny(blurred, low_threshold, high_threshold)
+
+# Crop the image to focus on the bottom part
+height, width = edges.shape
+crop_region = edges[height // 2 :, :]  # Bottom half of the image
+
+# Use Hough Line Transform to detect lines
+lines = cv2.HoughLinesP(crop_region, rho=1, theta=np.pi / 180, threshold=50, minLineLength=50, maxLineGap=10)
+
+# Find the bottom stair edge and calculate the distance
+red_center_x = width // 2  # Assuming the red mark is at the horizontal center
+distance_to_edge = None
+
+line_image = np.copy(image)
+if lines is not None:
+    for line in lines:
+        x1, y1, x2, y2 = line[0]
+        # Filter for nearly horizontal lines in the cropped region
+        if abs(y2 - y1) < 10:
+            # Draw the detected line
+            cv2.line(line_image, (x1, y1 + height // 2), (x2, y2 + height // 2), (0, 255, 0), 2)
+
+            # Find the nearest edge to the center mark
+            if distance_to_edge is None:
+                distance_to_edge = min(abs(red_center_x - x1), abs(red_center_x - x2))
+            else:
+                distance_to_edge = min(distance_to_edge, abs(red_center_x - x1), abs(red_center_x - x2))
+
+# Draw the center point
+cv2.circle(line_image, (red_center_x, height - 50), 10, (0, 0, 255), -1)  # Marking red circle for visualization
+
+# Display the result and distance
+print(f"Distance from center to nearest edge of the bottom stair: {distance_to_edge} pixels")
+
+# Show the images
+cv2.imshow("Edges", edges)
+cv2.imshow("Detected Lines", line_image)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
